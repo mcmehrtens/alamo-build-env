@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Parse apt packages from a YAML configuration file."""
+"""Parse a YAML configuration file."""
 
 import argparse
+import json
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -23,42 +24,36 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument(
-        "-c",
-        "--config",
-        required=True,
+        "config",
         help="Path to the YAML configuration file",
     )
+    parser.add_argument("output", help="Path to the output JSON file")
     return parser.parse_args()
 
 
-def parse_packages(config_path: Path) -> list[str]:
+def parse_config(config_path: Path) -> dict:
     """
-    Parse package list from a YAML configuration file.
+    Parse the YAML configuration file.
 
     Parameters
     ----------
     config_path
-        Path to configuration file.
+        Path to the YAML configuration file.
 
     Returns
     -------
-    list[str, ...]
-        List of packages as strings.
+    dict
+        The parsed configuration file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If configuration file is not found.
     """
     yaml = YAML(typ="safe")
-
     try:
         with open(config_path) as config_file:
-            config = yaml.load(config_file)
-        if "packages" not in config:
-            raise KeyError(
-                "The 'packages' key was not found in the configuration file."
-            )
-        if not isinstance(config["packages"], list):
-            raise ValueError(
-                "The 'packages' key must contain a list of package names."
-            )
-        return config["packages"]
+            return yaml.load(config_file)
     except FileNotFoundError as err:
         raise FileNotFoundError(
             f"Configuration file not found: {config_path}"
@@ -67,11 +62,24 @@ def parse_packages(config_path: Path) -> list[str]:
         raise RuntimeError("Error parsing YAML:") from err
 
 
+def write_json_config(output_path: Path, config: dict):
+    """
+    Write environment variables to the environment file.
+
+    Parameters
+    ----------
+    output_path
+        Path to the output config file.
+    """
+    with open(output_path, "w") as config_file:
+        json.dump(config, config_file, indent=4)
+
+
 def main() -> None:
     """Parse command-line arguments and process the YAML file."""
     args = parse_args()
-    package_list = parse_packages(Path(args.config))
-    print(" ".join(package_list))
+    config = parse_config(Path(args.config))
+    write_json_config(Path(args.output), config)
 
 
 if __name__ == "__main__":

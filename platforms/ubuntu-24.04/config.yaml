@@ -1,7 +1,7 @@
 git:
   repository: https://github.com/solidsgroup/alamo.git
   branch: development
-packages:
+system_packages:
   - build-essential
   - g++
   - gfortran
