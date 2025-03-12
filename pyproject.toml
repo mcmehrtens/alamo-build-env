@@ -1,0 +1,55 @@
+[project]
+name = "alamo-build-env"
+description = "Scripts used to help automate the creation of Alamo build images."
+readme = "README.md"
+requires-python = ">= 3.10"
+license = "MIT"
+license-files = [
+    "LICENSE",
+]
+authors = [
+    {name = "Matthew Mehrtens", email = "mehrtens@solids.group"},
+]
+maintainers = [
+    {name = "Matthew Mehrtens", email = "mehrtens@solids.group"},
+]
+
+[project.urls]
+Homepage = "https://www.solids.group/alamo/"
+Documentation = "https://solidsgroup.github.io/alamo/docs/index.html"
+Repository = "https://github.com/solidsgroup/alamo"
+
+[tool.pyright]
+extends = ".pyright-override.toml"
+pythonVersion = "3.10"
+
+[tool.ruff]
+line-length = 79
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "B",    # flake8-bugbear
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "D",    # pydocstyle
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "PT",   # flake8-pytest-style
+    "RUF",  # Ruff-specific rules
+]
+fixable = ["ALL"]
+unfixable = []
+exclude = [
+    ".git",
+]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 72
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+preview = true
