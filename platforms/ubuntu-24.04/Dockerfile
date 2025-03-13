@@ -38,3 +38,16 @@ RUN apt-get update \
 WORKDIR /build
 RUN git clone $(jq -r '.git.repository' "$CONFIG") . \
     && git checkout $(jq -r '.git.branch' "$CONFIG") 
+
+RUN jq -c '.configure_commands[]' "$CONFIG" | \
+    while read -r cmd_array; do \
+        args=$(echo $cmd_array | jq -r 'join(" ")'); \
+        echo "Building AMReX with: ./configure $args"; \
+        ./configure $args && \
+        make -j$(nproc) && \
+        make install && \
+        make clean && \
+        echo "Finished building AMReX with: $args"; \
+    done
+
+RUN rm -f "$CONFIG"

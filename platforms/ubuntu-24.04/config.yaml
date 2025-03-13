@@ -1,3 +1,5 @@
+# this first section will be written to the config.json 
+# subsequent sections are used in the Python config parser
 git:
   repository: https://github.com/solidsgroup/alamo.git
   branch: development
@@ -12,3 +14,87 @@ system_packages:
   - libeigen3-dev
   - libpng-dev
   - git
+---
+# Alamo Build Flags
+# =================
+#
+# This file defines the available build flags for Alamo and their valid 
+# combinations. Instead of explicitly listing every possible configuration,
+# this file uses a structured approach to define flags and their relationships.
+#
+# The configuration generator script will parse this file to produce valid 
+# build configurations while respecting the constraints defined here.
+#
+# STRUCTURE
+# ---------
+# The section has two main sections:
+#   1. flags: Defines all available build flags grouped by type
+#   2. constraints: Defines additional rules for flag combinations
+#
+# FLAGS SECTION
+# ------------
+# Each flag group has the following properties:
+#   - type: How flags in this group can be combined
+#       * "exclusive" - Only one flag from this group can be used at a time
+#       * "multiple" - Any number of flags from this group can be used together
+#   - required: Whether a flag from this group must be included (true/false)
+#   - options: List of actual flags in this group
+#
+# CONSTRAINTS SECTION
+# -----------------
+# Constraints define additional rules between flags that cannot be expressed
+# through the group structure.
+#
+# Each constraint has:
+#   - description: Human-readable explanation of the constraint
+#   - if: The flag that triggers this constraint
+#   - then: (Optional) A flag that must be present when "if" flag is used
+#   - not: (Optional) A flag that must NOT be present when "if" flag is used
+#
+# EXAMPLES
+# -------
+# To add a new compiler option:
+#   1. Add it to the "compiler" group's options list
+#
+# To add a new optional flag:
+#   1. Add it to the "optional" group's options list
+#   2. If it has restrictions, add appropriate constraints
+flags:
+  dimension:
+    type: exclusive
+    required: true
+    options:
+      - "--dim 2"
+      - "--dim 3"
+  compiler:
+    type: exclusive
+    required: true
+    options:
+      - "--comp g++"
+      - "--comp clang++"
+  optional:
+    type: multiple
+    required: false
+    options:
+      - "--debug"
+      - "--profile"
+      - "--coverage"
+  memcheck:
+    type: exclusive
+    required: false
+    options:
+      - "--memcheck --memcheck-tool msan"
+      - "--memcheck --memcheck-tool asan"
+constraints:
+  - description: "--memcheck requires --debug"
+    if: "--memcheck"
+    then: "--debug"
+  - description: "--memcheck-tool equires --memcheck"
+    if: "--memcheck-tool"
+    then: "--memcheck"
+  - description: "--memcheck-tool msan requires --comp clang++"
+    if: "--memcheck-tool msan"
+    then: "--comp clang++"
+  - description: "--memcheck is incompatible with --coverage"
+    if: "--memcheck"
+    not: "--coverage"
