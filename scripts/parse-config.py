@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Parse a YAML configuration file."""
 
+import re
 import argparse
 import itertools
 import json
@@ -171,12 +172,75 @@ def generate_configure_commands(flag_config: dict) -> list[list[str]]:
     return valid_configs
 
 
+def generate_make_targets(
+    amrex_dir: str, configure_commands: list[list[str]]
+) -> list[str]:
+    """
+    Generate the make target based on the configure flags.
+
+    This target will not include the AMReX version which must be added
+    at build time.
+
+    Parameters
+    ----------
+    amrex_dir
+        AMReX checkout location relative to Alamo root.
+    configure_commands
+        List of valid configure commands.
+
+    Returns
+    -------
+    list[str]
+        Ordered list with the make targets corresponding to the
+        configure commands.
+    """
+    targets = []
+    for conf_cmd in configure_commands:
+        cmd = " ".join(conf_cmd)
+
+        # get the dimension
+        match = re.search(r"--dim\s+(\d+)", cmd)
+        if match:
+            dim = match.group(1)
+        else:
+            raise RuntimeError(
+                f"Configure flags don't specify dimension: {cmd}"
+            )
+
+        # get the compiler
+        match = re.search(r"--comp\s+(\S+)", cmd)
+        if match:
+            comp = match.group(1)
+        else:
+            raise RuntimeError(
+                f"Configure flags don't specify compiler: {cmd}"
+            )
+
+        target = amrex_dir + "/"
+        target += f"{dim}d"
+        target += "-debug" if "--debug" in cmd else ""
+        target += "-asan" if "--memcheck-tool asan" in cmd else ""
+        target += "-msan" if "--memcheck-tool msan" in cmd else ""
+        target += "-profile" if "--profile" in cmd else ""
+        target += "-coverage" if "--coverage" in cmd else ""
+        target += f"-{comp}"
+        targets.append(target)
+    return targets
+
+
 def main() -> None:
     """Parse command-line arguments and process the YAML file."""
     args = parse_args()
     config, flag_config = parse_config(Path(args.config))
     configure_commands = generate_configure_commands(flag_config)
-    config["configure_commands"] = configure_commands
+    targets = generate_make_targets(
+        str(Path(config["amrex_build_config"]["amrex_dir"])),
+        configure_commands,
+    )
+    config["configure_commands"] = [
+        {"target": target, "configure_cmd": cmd}
+        for target, cmd in zip(targets, configure_commands, strict=True)
+    ]
     write_json_config(Path(args.output), config)
 
 

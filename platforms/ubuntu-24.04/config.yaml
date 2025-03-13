@@ -14,6 +14,9 @@ system_packages:
   - libeigen3-dev
   - libpng-dev
   - git
+amrex_build_config:
+  amrex_dir: ext/amrex
+  configure_cmd: ./configure
 ---
 # Alamo Build Flags
 # =================
