@@ -15,6 +15,9 @@ maintainers = [
 dev = [
     "ruamel.yaml",
 ]
+container = [
+    "ruamel.yaml"
+]
 
 [project.urls]
 Homepage = "https://www.solids.group/alamo/"

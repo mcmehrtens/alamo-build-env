@@ -4,6 +4,8 @@ git:
   repository: https://github.com/solidsgroup/alamo.git
   branch: development
 system_packages:
+  # for AMReX/Alamo build
+  - git
   - build-essential
   - g++
   - gfortran
@@ -13,7 +15,8 @@ system_packages:
   - libopenmpi-dev
   - libeigen3-dev
   - libpng-dev
-  - git
+  - python3
+  - ca-certificates
 amrex_build_config:
   amrex_dir: ext/amrex
   configure_cmd: ./configure
