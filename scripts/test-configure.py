@@ -37,12 +37,6 @@ def parse_args() -> argparse.Namespace:
         default="./configure",
         help="Path to the configure script",
     )
-    parser.add_argument(
-        "--continue-on-error",
-        action="store_true",
-        help="Continue running commands even if some fail",
-    )
-
     return parser.parse_args()
 
 
@@ -142,9 +136,10 @@ def main():
         "command_results": [],
     }
 
-    for i, command_args in enumerate(config_data["configure_commands"]):
+    for i, command in enumerate(config_data["configure_commands"]):
         print(f"\nCommand {i + 1}/{results['total_commands']}:")
 
+        command_args = command["configure_cmd"]
         expanded_args = []
         for arg in command_args:
             if (
