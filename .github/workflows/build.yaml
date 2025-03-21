@@ -1,0 +1,50 @@
+name: Build Alamo Dependencies
+on:
+  push:
+    branches: ["main"]
+jobs:
+  build-ubuntu-2404:
+    name: Build Ubuntu 24.04 Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          file: "{context}/platforms/ubuntu-24.04/Dockerfile"
+          build-args: |
+            DIMENSION=${{ matrix.dimension }}
+            COMPILER=${{ matrix.compiler }}
+            DEBUG=${{ matrix.debug }}
+            PROFILE=${{ matrix.profile }}
+            COVERAGE=${{ matrix.coverage }}
+            MEMCHECK=${{ matrix.memcheck }}
+          push: false
+    strategy:
+      matrix:
+        dimension: [2, 3]
+        compiler: [g++, clang++]
+        debug: [0, 1]
+        profile: [0, 1]
+        coverage: [0, 1]
+        memcheck: [0, msan, asan]
+        exclude:
+          - memcheck: msan
+            debug: 0
+          - memcheck: asan
+            debug: 0
+          - memcheck: msan
+            compiler: g++
+          - memcheck: msan
+            coverage: 1
+          - memcheck: asan
+            coverage: 1
