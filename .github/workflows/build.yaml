@@ -37,7 +37,7 @@ jobs:
             PROFILE=${{ matrix.profile }}
             COVERAGE=${{ matrix.coverage }}
             MEMCHECK=${{ matrix.memcheck }}
-          push: false
+          push: true
           tags: ghcr.io/${{ github.actor }}/${{ steps.image-name.outputs.name }}:${{ matrix.amrex_version }}
     strategy:
       fail-fast: false
