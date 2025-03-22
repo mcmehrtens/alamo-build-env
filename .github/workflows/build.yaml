@@ -17,11 +17,18 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Generate Docker Image name
+        id: image-name
+        run: |
+          IMAGE_NAME=$(./scripts/generate_docker_image_name.py ${{ matrix.dimension }} ${{ matrix.compiler }} ${{ matrix.debug }} ${{ matrix.profile }} ${{ matrix.coverage }} ${{ matrix.memcheck }} ubuntu2404)
+          echo "name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+          echo "Generated image name: $IMAGE_NAME"
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           file: "platforms/ubuntu-24.04/Dockerfile"
           build-args: |
+            AMREX_VERSION=${{ matrix.amrex_version }}
             DIMENSION=${{ matrix.dimension }}
             COMPILER=${{ matrix.compiler }}
             DEBUG=${{ matrix.debug }}
@@ -29,8 +36,11 @@ jobs:
             COVERAGE=${{ matrix.coverage }}
             MEMCHECK=${{ matrix.memcheck }}
           push: false
+          tags: ghcr.io/${{ github.actor }}/${{ steps.image-name.outputs.name }}:${{ matrix.amrex_version }}
     strategy:
+      fail-fast: false
       matrix:
+        amrex_version: ["25.03"]
         dimension: [2, 3]
         compiler: [g++, clang++]
         debug: [0, 1]

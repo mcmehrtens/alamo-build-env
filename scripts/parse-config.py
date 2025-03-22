@@ -2,10 +2,8 @@
 """Parse a YAML configuration file."""
 
 import argparse
-import itertools
 import json
 import logging
-import re
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -34,6 +32,28 @@ def parse_args() -> argparse.Namespace:
         help="Path to the YAML configuration file",
     )
     parser.add_argument("output", help="Path to the output JSON file")
+    parser.add_argument("amrex_version", help="The AMReX version to compile")
+    parser.add_argument(
+        "dimension",
+        type=int,
+        choices=[2, 3],
+        help="The dimension configure flag",
+    )
+    parser.add_argument("compiler", help="The compiler to use")
+    parser.add_argument(
+        "debug", type=int, help="Whether to set the debug flag"
+    )
+    parser.add_argument(
+        "profile", type=int, help="Whether to set the profile flag"
+    )
+    parser.add_argument(
+        "coverage", type=int, help="Whether to set the coverage flag"
+    )
+    parser.add_argument(
+        "memcheck",
+        choices=["0", "msan", "asan"],
+        help="The type of memcheck to use (if any)",
+    )
     parser.add_argument(
         "--log-level",
         type=str,
@@ -104,222 +124,160 @@ def parse_config(config_path: Path) -> tuple[dict, ...]:
 
 def write_json_config(output_path: Path, config: dict):
     """
-    Write environment variables to the environment file.
+    Write the JSON configuration file.
 
     Parameters
     ----------
     output_path
         Path to the output config file.
     config
-        The parsed configuration object.
+        Parsed configuration object.
     """
     logger.info("Writing output config: %s", output_path)
+    logger.debug("Output config:\n%s", json.dumps(config, indent=4))
     with open(output_path, "w") as config_file:
         json.dump(config, config_file, indent=4)
 
 
-def generate_configure_commands(config: dict) -> list[list[str]]:
+def generate_configure_command(
+    base_configure_cmd: str,
+    amrex_version: str,
+    dimension: int,
+    compiler: str,
+    debug: int,
+    profile: int,
+    coverage: int,
+    memcheck: str,
+) -> list[str]:
     """
-    Generate all valid build flag combinations.
-
-    Refer to the YAML file for documentation on how config parsing is
-    executed.
+    Generate an Alamo configure command.
 
     Parameters
     ----------
-    flag_config
-        The parsed configuration object.
+    base_configure_cmd
+        Base Alamo configure command (usually ./configure).
+    amrex_version
+        AMReX version (git tag) to build.
+    dimension
+        Spatial dimension to configure.
+    compiler
+        Compiler to use.
+    debug
+        Whether to use the --debug flag.
+    profile
+        Whether to use the --profile flag.
+    coverage
+        Whether to use the --coverage flag.
+    memcheck
+        Whether to use the --memcheck flag and which memcheck tool to
+        use.
 
     Returns
     -------
-    list[list[str]]
-        Each possible configure command, where each argument and flag
-        is a different element in the internal list.
+    list[str]
+        Configure command split by white spaces.
     """
-    logger.info("Generating configure commands...")
+    logger.info("Generating configure command...")
 
-    flag_groups = config["flags"]
-    logger.debug("flags:\n%s", json.dumps(flag_groups, indent=4))
-
-    constraints = config.get("constraints", [])
-    logger.debug("constraints:\n%s", json.dumps(constraints, indent=4))
-
-    logger.debug("Parsing exclusive, required flags...")
-    exclusive_groups = []
-    for flag_group in flag_groups.values():
-        if flag_group["type"] == "exclusive" and flag_group.get(
-            "required", False
-        ):
-            exclusive_groups.append(flag_group["options"])
-    logger.debug(
-        "exlcusive_groups:\n%s", json.dumps(exclusive_groups, indent=4)
+    configure_cmd = (
+        f"{base_configure_cmd} "
+        f"--build-amrex-tag {amrex_version} "
+        f"--dim {dimension} "
+        f"--comp {compiler}"
     )
+    configure_cmd += " --debug " if debug else ""
+    configure_cmd += " --profile " if profile else ""
+    configure_cmd += " --coverage " if coverage else ""
 
-    logger.debug(
-        "Generating all possible configure commands from the exclusive, "
-        "required flag groups..."
-    )
-    base_commands = list(itertools.product(*exclusive_groups))
-    all_commands: list[list[str]] = [list(config) for config in base_commands]
-    logger.debug("configure_commands:\n%s", json.dumps(all_commands, indent=4))
+    if memcheck != "0":
+        configure_cmd += f" --memcheck --memcheck-tool {memcheck}"
 
-    logger.debug(
-        "Generating all possible configure commands from the non-exclusive "
-        "flag groups..."
-    )
-    for flag_group in flag_groups.values():
-        if flag_group["type"] == "multiple":
-            new_commands = []
-            for command in all_commands:
-                opt_flags = flag_group["options"]
-                for r in range(len(opt_flags) + 1):
-                    # Skip the "0" combination if the group is required.
-                    if flag_group["required"] and r == 0:
-                        continue
-                    for combo in itertools.combinations(opt_flags, r):
-                        new_commands.append(command + list(combo))
-            all_commands = new_commands
-    logger.debug("configure_commands:\n%s", json.dumps(all_commands, indent=4))
-
-    logger.debug("Processing, exclusive, non-required flag groups...")
-    for flag_group in flag_groups.values():
-        if flag_group["type"] == "exclusive" and not flag_group.get(
-            "required", False
-        ):
-            new_commands = []
-            for command in all_commands:
-                new_commands.append(command.copy())
-                for option in flag_group["options"]:
-                    new_command = command.copy()
-                    new_command.append(option)
-                    new_commands.append(new_command)
-            all_commands = new_commands
-    logger.debug("configure_commands:\n%s", json.dumps(all_commands, indent=4))
-
-    logger.debug("Processing constraints...")
-    valid_commands = []
-    for command in all_commands:
-        expanded_config = []
-        for arg in command:
-            if (
-                " " in arg
-                and not arg.startswith('"')
-                and not arg.startswith("'")
-            ):
-                expanded_config.extend(arg.split())
-            else:
-                expanded_config.append(arg)
-        valid = True
-        command_str = " ".join(expanded_config)
-
-        for constraint in constraints:
-            if_flag = constraint["if"]
-            then_flag = constraint.get("then")
-            not_flag = constraint.get("not")
-
-            if if_flag in command_str:
-                if then_flag and then_flag not in command_str:
-                    valid = False
-                    break
-                if not_flag and not_flag in command_str:
-                    valid = False
-                    break
-
-        if valid:
-            valid_commands.append(command)
-    logger.debug(
-        "configure_commands:\n%s", json.dumps(valid_commands, indent=4)
-    )
-    logger.info(
-        "%d configure commands successfully generated.", len(valid_commands)
-    )
-
-    return valid_commands
+    logger.info("Generated configure command: %s", configure_cmd)
+    return configure_cmd.replace("  ", " ").strip().split(" ")
 
 
-def generate_make_targets(
-    amrex_dir: str, configure_commands: list[list[str]]
-) -> list[str]:
+def generate_make_target(
+    amrex_dir: str,
+    amrex_version: str,
+    dimension: int,
+    compiler: str,
+    debug: int,
+    profile: int,
+    coverage: int,
+    memcheck: str,
+) -> str:
     """
     Generate the make target based on the configure flags.
-
-    This target will not include the AMReX version which must be added
-    at build time.
 
     Parameters
     ----------
     amrex_dir
         AMReX checkout location relative to Alamo root.
-    configure_commands
-        List of valid configure commands.
+    amrex_version
+        AMReX version (git tag) to build.
+    dimension
+        Spatial dimension to configure.
+    compiler
+        Compiler to use.
+    debug
+        Whether to use the --debug flag.
+    profile
+        Whether to use the --profile flag.
+    coverage
+        Whether to use the --coverage flag.
+    memcheck
+        Whether to use the --memcheck flag and which memcheck tool to
+        use.
 
     Returns
     -------
-    list[str]
-        Ordered list with the make targets corresponding to the
-        configure commands.
+    str
+        Make target for the given configure command.
     """
-    logger.info(
-        "Generating make targets that correspond to the configure commands..."
-    )
-    targets = []
-    for conf_cmd in configure_commands:
-        cmd = " ".join(conf_cmd)
+    logger.info("Generate make target...")
 
-        # get the dimension
-        match = re.search(r"--dim\s+(\d+)", cmd)
-        if match:
-            dim = match.group(1)
-        else:
-            error_msg = f"Configure flags don't specify dimension: {cmd}"
-            logger.error(error_msg, exc_info=True)
-            raise RuntimeError(error_msg)
+    target = f"{amrex_dir}/{dimension}d"
+    target += "-debug" if debug else ""
+    target += "-asan" if memcheck == "asan" else ""
+    target += "-msan" if memcheck == "msan" else ""
+    target += "-profile" if profile else ""
+    target += "-coverage" if coverage else ""
+    target += f"-{compiler}-{amrex_version}"
 
-        # get the compiler
-        match = re.search(r"--comp\s+(\S+)", cmd)
-        if match:
-            comp = match.group(1)
-        else:
-            error_msg = f"Configure flags don't specify compiler: {cmd}"
-            logger.error(error_msg, exc_info=True)
-            raise RuntimeError(error_msg)
-
-        target = amrex_dir + "/"
-        target += f"{dim}d"
-        target += "-debug" if "--debug" in cmd else ""
-        target += "-asan" if "--memcheck-tool asan" in cmd else ""
-        target += "-msan" if "--memcheck-tool msan" in cmd else ""
-        target += "-profile" if "--profile" in cmd else ""
-        target += "-coverage" if "--coverage" in cmd else ""
-        target += f"-{comp}"
-        targets.append(target)
-
-    logger.debug("targets:\n%s", json.dumps(targets, indent=4))
-    return targets
+    logger.info("Generated make target: %s", target)
+    return target
 
 
 def main() -> None:
     """Parse command-line arguments and process the YAML file."""
     args = parse_args()
     configure_logging(args.log_level)
+    logger.debug("Parsed args:\n%s", args)
 
     logger.info("Parsing config: %s", args.config)
-    output_config, flag_config = parse_config(Path(args.config))
+    (output_config,) = parse_config(Path(args.config))
 
-    configure_commands = generate_configure_commands(flag_config)
-
-    targets = generate_make_targets(
-        str(Path(output_config["amrex_build_config"]["amrex_dir"])),
-        configure_commands,
+    output_config["configure_cmd"] = generate_configure_command(
+        output_config["base_configure_cmd"],
+        args.amrex_version,
+        args.dimension,
+        args.compiler,
+        args.debug,
+        args.profile,
+        args.coverage,
+        args.memcheck,
     )
 
-    logger.info(
-        "Adding configure commands and their targets to the output config..."
+    output_config["make_target"] = generate_make_target(
+        str(Path(output_config["amrex_dir"])),
+        args.amrex_version,
+        args.dimension,
+        args.compiler,
+        args.debug,
+        args.profile,
+        args.coverage,
+        args.memcheck,
     )
-    output_config["configure_commands"] = [
-        {"target": target, "configure_cmd": cmd}
-        for target, cmd in zip(targets, configure_commands, strict=True)
-    ]
 
     write_json_config(Path(args.output), output_config)
 
