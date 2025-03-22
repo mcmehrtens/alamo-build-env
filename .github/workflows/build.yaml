@@ -5,6 +5,11 @@ on:
 jobs:
   build-ubuntu-2404:
     name: Build Ubuntu 24.04 Images
+    permissions:
+      contents: read
+      packages: write
+      # attestations: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
