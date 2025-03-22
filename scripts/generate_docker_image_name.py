@@ -59,7 +59,15 @@ def generate_docker_image_name(
     if coverage:
         image_name = f"{image_name}-coverage"
 
-    image_name = f"{image_name}-{compiler}-{os}"
+    # docker images don't support `+` symbols
+    if compiler == "g++":
+        image_name = f"{image_name}-gcc"
+    elif compiler == "clang++":
+        image_name = f"{image_name}-clang"
+    else:
+        image_name = f"{image_name}-{compiler}"
+
+    image_name = f"{image_name}-{os}"
 
     return image_name
 
