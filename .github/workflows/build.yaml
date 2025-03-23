@@ -33,7 +33,6 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          file: "platforms/ubuntu-24.04/Dockerfile"
           build-args: |
             AMREX_VERSION=${{ matrix.amrex_version }}
             DIMENSION=${{ matrix.dimension }}
@@ -42,6 +41,10 @@ jobs:
             PROFILE=${{ matrix.profile }}
             COVERAGE=${{ matrix.coverage }}
             MEMCHECK=${{ matrix.memcheck }}
+          file: "platforms/ubuntu-24.04/Dockerfile"
+          platforms: |
+            linux/amd64
+            linux/arm64
           push: true
           tags: ghcr.io/${{ github.actor }}/${{ steps.image-name.outputs.name }}:${{ matrix.amrex_version }}
     strategy:
