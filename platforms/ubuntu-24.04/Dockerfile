@@ -73,6 +73,10 @@ WORKDIR /app
 
 RUN rm -rf /build
 
+RUN useradd -m -s /bin/bash alamo
+USER alamo
+CMD ["bash"]
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD if [ -d "${AMREX_INSTALL_ROOT}" ] && [ -n "$(ls -A ${AMREX_INSTALL_ROOT})" ]; then \
             echo "AMReX installation verified."; \
@@ -81,7 +85,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
             echo "AMReX installation not found or empty."; \
             exit 1; \
         fi
-
-USER alamo
-
-CMD ["bash"]
